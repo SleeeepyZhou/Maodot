@@ -1,3 +1,7 @@
+- [x] ~~Fix Micphone~~  
+- [ ] Fix FFT  
+- [ ] Fix ExpandMode  
+
 # Maodot Engine
 
 <p align="center">
