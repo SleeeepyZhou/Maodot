@@ -350,7 +350,7 @@ void EditorFileDialog::shortcut_input(const Ref<InputEvent> &p_event) {
 
 void EditorFileDialog::set_enable_multiple_selection(bool p_enable) {
 	item_list->set_select_mode(p_enable ? ItemList::SELECT_MULTI : ItemList::SELECT_SINGLE);
-};
+}
 
 Vector<String> EditorFileDialog::get_selected_files() const {
 	Vector<String> list;
@@ -360,7 +360,7 @@ Vector<String> EditorFileDialog::get_selected_files() const {
 		}
 	}
 	return list;
-};
+}
 
 void EditorFileDialog::update_dir() {
 	if (drives->is_visible()) {
@@ -1355,6 +1355,13 @@ EditorFileDialog::Access EditorFileDialog::get_access() const {
 void EditorFileDialog::_make_dir_confirm() {
 	const String stripped_dirname = makedirname->get_text().strip_edges();
 
+	if (stripped_dirname.is_empty()) {
+		error_dialog->set_text(TTR("The path specified is invalid."));
+		error_dialog->popup_centered(Size2(250, 50) * EDSCALE);
+		makedirname->set_text(""); // Reset label.
+		return;
+	}
+
 	if (dir_access->dir_exists(stripped_dirname)) {
 		error_dialog->set_text(TTR("Could not create folder. File with that name already exists."));
 		error_dialog->popup_centered(Size2(250, 50) * EDSCALE);
@@ -1476,29 +1483,29 @@ void EditorFileDialog::_update_drives(bool p_select) {
 void EditorFileDialog::_update_icons() {
 	// Update icons.
 
-	mode_thumbnails->set_icon(theme_cache.mode_thumbnails);
-	mode_list->set_icon(theme_cache.mode_list);
+	mode_thumbnails->set_button_icon(theme_cache.mode_thumbnails);
+	mode_list->set_button_icon(theme_cache.mode_list);
 
 	if (is_layout_rtl()) {
-		dir_prev->set_icon(theme_cache.forward_folder);
-		dir_next->set_icon(theme_cache.back_folder);
+		dir_prev->set_button_icon(theme_cache.forward_folder);
+		dir_next->set_button_icon(theme_cache.back_folder);
 	} else {
-		dir_prev->set_icon(theme_cache.back_folder);
-		dir_next->set_icon(theme_cache.forward_folder);
+		dir_prev->set_button_icon(theme_cache.back_folder);
+		dir_next->set_button_icon(theme_cache.forward_folder);
 	}
-	dir_up->set_icon(theme_cache.parent_folder);
+	dir_up->set_button_icon(theme_cache.parent_folder);
 
-	refresh->set_icon(theme_cache.reload);
-	favorite->set_icon(theme_cache.favorite);
-	show_hidden->set_icon(theme_cache.toggle_hidden);
-	makedir->set_icon(theme_cache.create_folder);
+	refresh->set_button_icon(theme_cache.reload);
+	favorite->set_button_icon(theme_cache.favorite);
+	show_hidden->set_button_icon(theme_cache.toggle_hidden);
+	makedir->set_button_icon(theme_cache.create_folder);
 
 	filter_box->set_right_icon(theme_cache.filter_box);
-	file_sort_button->set_icon(theme_cache.file_sort_button);
+	file_sort_button->set_button_icon(theme_cache.file_sort_button);
 	filter_box->set_clear_button_enabled(true);
 
-	fav_up->set_icon(theme_cache.favorites_up);
-	fav_down->set_icon(theme_cache.favorites_down);
+	fav_up->set_button_icon(theme_cache.favorites_up);
+	fav_down->set_button_icon(theme_cache.favorites_down);
 }
 
 void EditorFileDialog::_favorite_selected(int p_idx) {

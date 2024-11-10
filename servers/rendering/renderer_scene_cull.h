@@ -1121,6 +1121,7 @@ public:
 	struct Cull {
 		struct Shadow {
 			RID light_instance;
+			uint32_t caster_mask;
 			struct Cascade {
 				Frustum frustum;
 
@@ -1255,6 +1256,7 @@ public:
 	PASS3(environment_set_bg_energy, RID, float, float)
 	PASS2(environment_set_canvas_max_layer, RID, int)
 	PASS6(environment_set_ambient_light, RID, const Color &, RS::EnvironmentAmbientSource, float, float, RS::EnvironmentReflectionSource)
+	PASS2(environment_set_camera_feed_id, RID, int)
 
 	PASS1RC(RS::EnvironmentBG, environment_get_background, RID)
 	PASS1RC(RID, environment_get_sky, RID)

@@ -940,8 +940,8 @@ void GDScriptAnalyzer::resolve_class_member(GDScriptParser::ClassNode *p_class, 
 	Finally finally([&]() {
 		ensure_cached_external_parser_for_class(member.get_datatype().class_type, p_class, "Trying to resolve datatype of class member", p_source);
 		GDScriptParser::DataType member_type = member.get_datatype();
-		if (member_type.has_container_element_type(0)) {
-			ensure_cached_external_parser_for_class(member_type.get_container_element_type(0).class_type, p_class, "Trying to resolve datatype of class member", p_source);
+		for (int i = 0; i < member_type.get_container_element_type_count(); ++i) {
+			ensure_cached_external_parser_for_class(member_type.get_container_element_type(i).class_type, p_class, "Trying to resolve datatype of class member", p_source);
 		}
 	});
 
@@ -3816,6 +3816,12 @@ GDScriptParser::DataType GDScriptAnalyzer::make_global_class_meta_type(const Str
 }
 
 Ref<GDScriptParserRef> GDScriptAnalyzer::ensure_cached_external_parser_for_class(const GDScriptParser::ClassNode *p_class, const GDScriptParser::ClassNode *p_from_class, const char *p_context, const GDScriptParser::Node *p_source) {
+	// Delicate piece of code that intentionally doesn't use the GDScript cache or `get_depended_parser_for`.
+	// Search dependencies for the parser that owns `p_class` and make a cache entry for it.
+	// Required for how we store pointers to classes owned by other parser trees and need to call `resolve_class_member` and such on the same parser tree.
+	// Since https://github.com/godotengine/godot/pull/94871 there can technically be multiple parsers for the same script in the same parser tree.
+	// Even if unlikely, getting the wrong parser could lead to strange undefined behavior without errors.
+
 	if (p_class == nullptr) {
 		return nullptr;
 	}
@@ -3831,8 +3837,6 @@ Ref<GDScriptParserRef> GDScriptAnalyzer::ensure_cached_external_parser_for_class
 	if (p_from_class == nullptr) {
 		p_from_class = parser->head;
 	}
-
-	String script_path = p_class->get_datatype().script_path;
 
 	Ref<GDScriptParserRef> parser_ref;
 	for (const GDScriptParser::ClassNode *look_class = p_from_class; look_class != nullptr; look_class = look_class->base_type.class_type) {
@@ -5805,8 +5809,6 @@ void GDScriptAnalyzer::validate_call_arg(const List<GDScriptParser::DataType> &p
 #ifdef DEBUG_ENABLED
 void GDScriptAnalyzer::is_shadowing(GDScriptParser::IdentifierNode *p_identifier, const String &p_context, const bool p_in_local_scope) {
 	const StringName &name = p_identifier->name;
-	GDScriptParser::DataType base = parser->current_class->get_datatype();
-	GDScriptParser::ClassNode *base_class = base.class_type;
 
 	{
 		List<MethodInfo> gdscript_funcs;
@@ -5834,40 +5836,56 @@ void GDScriptAnalyzer::is_shadowing(GDScriptParser::IdentifierNode *p_identifier
 		}
 	}
 
+	const GDScriptParser::DataType current_class_type = parser->current_class->get_datatype();
 	if (p_in_local_scope) {
-		while (base_class != nullptr) {
+		GDScriptParser::ClassNode *base_class = current_class_type.class_type;
+
+		if (base_class != nullptr) {
 			if (base_class->has_member(name)) {
 				parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE, p_context, p_identifier->name, base_class->get_member(name).get_type_name(), itos(base_class->get_member(name).get_line()));
 				return;
 			}
 			base_class = base_class->base_type.class_type;
 		}
+
+		while (base_class != nullptr) {
+			if (base_class->has_member(name)) {
+				String base_class_name = base_class->get_global_name();
+				if (base_class_name.is_empty()) {
+					base_class_name = base_class->fqcn;
+				}
+
+				parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, base_class->get_member(name).get_type_name(), itos(base_class->get_member(name).get_line()), base_class_name);
+				return;
+			}
+			base_class = base_class->base_type.class_type;
+		}
 	}
 
-	StringName parent = base.native_type;
-	while (parent != StringName()) {
-		ERR_FAIL_COND_MSG(!class_exists(parent), "Non-existent native base class.");
+	StringName native_base_class = current_class_type.native_type;
+	while (native_base_class != StringName()) {
+		ERR_FAIL_COND_MSG(!class_exists(native_base_class), "Non-existent native base class.");
 
-		if (ClassDB::has_method(parent, name, true)) {
-			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "method", parent);
+		if (ClassDB::has_method(native_base_class, name, true)) {
+			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "method", native_base_class);
 			return;
-		} else if (ClassDB::has_signal(parent, name, true)) {
-			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "signal", parent);
+		} else if (ClassDB::has_signal(native_base_class, name, true)) {
+			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "signal", native_base_class);
 			return;
-		} else if (ClassDB::has_property(parent, name, true)) {
-			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "property", parent);
+		} else if (ClassDB::has_property(native_base_class, name, true)) {
+			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "property", native_base_class);
 			return;
-		} else if (ClassDB::has_integer_constant(parent, name, true)) {
-			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "constant", parent);
+		} else if (ClassDB::has_integer_constant(native_base_class, name, true)) {
+			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "constant", native_base_class);
 			return;
-		} else if (ClassDB::has_enum(parent, name, true)) {
-			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "enum", parent);
+		} else if (ClassDB::has_enum(native_base_class, name, true)) {
+			parser->push_warning(p_identifier, GDScriptWarning::SHADOWED_VARIABLE_BASE_CLASS, p_context, p_identifier->name, "enum", native_base_class);
 			return;
 		}
-		parent = ClassDB::get_parent_class(parent);
+		native_base_class = ClassDB::get_parent_class(native_base_class);
 	}
 }
-#endif
+#endif // DEBUG_ENABLED
 
 GDScriptParser::DataType GDScriptAnalyzer::get_operation_type(Variant::Operator p_operation, const GDScriptParser::DataType &p_a, bool &r_valid, const GDScriptParser::Node *p_source) {
 	// Unary version.

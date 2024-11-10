@@ -859,6 +859,7 @@ public:
 
 		Vector<Argument> arguments;
 		DataType return_type = TYPE_VOID;
+		String skip_function;
 	};
 
 	struct ModeInfo {
@@ -934,7 +935,7 @@ private:
 		const char *text;
 		uint32_t flags;
 		const Vector<String> excluded_shader_types;
-		const Vector<String> functions;
+		const Vector<String> excluded_functions;
 	};
 
 	static const KeyWord keyword_list[];
@@ -1150,6 +1151,7 @@ private:
 
 	const HashMap<StringName, FunctionInfo> *stages = nullptr;
 	bool is_supported_frag_only_funcs = false;
+	bool is_discard_supported = false;
 
 	bool _get_completable_identifier(BlockNode *p_block, CompletionType p_type, StringName &identifier);
 	static const BuiltinFuncDef builtin_func_defs[];
@@ -1211,7 +1213,7 @@ public:
 	struct ShaderCompileInfo {
 		HashMap<StringName, FunctionInfo> functions;
 		Vector<ModeInfo> render_modes;
-		VaryingFunctionNames varying_function_names = VaryingFunctionNames();
+		VaryingFunctionNames varying_function_names;
 		HashSet<String> shader_types;
 		GlobalShaderUniformGetTypeFunc global_shader_uniform_type_func = nullptr;
 		bool is_include = false;
